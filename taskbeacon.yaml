@@ -1,0 +1,16 @@
+id: H000033
+slug: visual-search
+title: Visual Search Task
+acquisition: behavior
+variant: html
+cognitive_domain:
+  - attention
+  - visual_perception
+  - executive_control
+maturity: prototype
+version:
+  release_tag: "0.1.0"
+contracts:
+  psyflow_web_taps: v0.1.0
+maintainer: []
+

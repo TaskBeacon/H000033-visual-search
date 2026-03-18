@@ -1,0 +1,163 @@
+subinfo_fields:
+  - name: subject_id
+    type: int
+    constraints:
+      min: 101
+      max: 999
+      digits: 3
+
+subinfo_mapping:
+  subject_id: Subject ID (3 digits)
+  Participant Information: Participant Information
+  registration_failed: Registration failed
+  registration_successful: Registration successful
+  invalid_input: "{field} is invalid"
+
+window:
+  size: [1280, 720]
+  units: pix
+  screen: 0
+  bg_color: gray
+  fullscreen: true
+  fullscreen_lock_escape: true
+  monitor_width_cm: 35.5
+  monitor_distance_cm: 60
+
+task:
+  task_name: visual_search_preview
+  save_path: ./outputs/human
+  total_blocks: 3
+  total_trials: 144
+  trial_per_block: 48
+  conditions:
+    - feature_present
+    - feature_absent
+    - conjunction_present
+    - conjunction_absent
+  key_list:
+    - f
+    - j
+    - space
+  present_key: f
+  absent_key: j
+  seed_mode: same_across_sub
+  overall_seed: 2025
+  language: English
+  voice_name: en-US-AriaNeural
+  voice_enabled: false
+  input_mode: keyboard
+  hide_cursor: true
+  force_quit_enabled: true
+  force_quit_shortcut: ctrl+q
+
+timing:
+  fixation_duration: [0.5, 0.8]
+  response_deadline: 2.0
+  iti_duration: 0.4
+  item_height: 44
+  item_font: Arial
+
+stimuli:
+  instruction_text:
+    type: text
+    text: |
+      Visual Search Task
+
+      Find the red T in each array.
+
+      Press F if the red T is present.
+      Press J if the red T is absent.
+
+      Work quickly and accurately.
+
+      Press SPACE to begin.
+    color: white
+    height: 28
+    pos: [0, 40]
+
+  fixation:
+    type: text
+    text: "+"
+    color: white
+    height: 44
+    pos: [0, 0]
+
+  search_goal:
+    type: text
+    text: "Find red T"
+    color: "#ebebeb"
+    height: 28
+    pos: [0, 305]
+
+  array_boundary:
+    type: circle
+    radius: 285
+    pos: [0, 0]
+    lineColor: "#737373"
+    lineWidth: 2
+    fillColor: null
+
+  block_break:
+    type: text
+    text: |
+      Block {block_num}/{total_blocks} complete
+
+      Accuracy: {block_accuracy_pct}
+      Mean correct RT: {mean_rt_ms} ms
+      Timeouts: {timeout_count}
+
+      Press SPACE when ready.
+    color: white
+    height: 26
+
+  good_bye:
+    type: text
+    text: |
+      Task complete.
+
+      Trials: {total_trials}
+      Accuracy: {total_accuracy_pct}
+      Mean correct RT: {mean_rt_ms} ms
+      Timeouts: {total_timeouts}
+
+      Press SPACE to exit.
+    color: white
+    height: 28
+
+triggers:
+  map:
+    exp_onset: 1
+    exp_end: 2
+    block_onset: 10
+    block_end: 11
+    fixation_onset: 20
+    search_onset: 30
+    response_present: 31
+    response_absent: 32
+    search_timeout: 33
+    iti_onset: 40
+
+  driver:
+    type: serial_url
+    url: loop://
+    baudrate: 115200
+
+  timing:
+    post_delay_ms: 1
+
+  policy:
+    strict: false
+
+controller:
+  feature_set_sizes: [8, 12, 16]
+  conjunction_set_sizes: [8, 12, 16]
+  array_radius_px: 245
+  array_radius_jitter_px: 25
+  orientation_pool: [0, 90, 180, 270]
+  target_glyph: T
+  conjunction_alt_glyph: L
+  target_color: red
+  distractor_color: green
+  random_seed: null
+  enable_logging: true
+

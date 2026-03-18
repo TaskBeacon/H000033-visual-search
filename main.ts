@@ -18,7 +18,6 @@ import {
 } from "psyflow-web";
 
 import configText from "./config/config.yaml?raw";
-import { Controller } from "./src/controller";
 import { run_trial } from "./src/run_trial";
 import { summarizeBlock, summarizeOverall } from "./src/utils";
 
@@ -38,20 +37,46 @@ function buildWaitTrial(
   return trial.build();
 }
 
+function normalizeConditionLabel(condition: string): string {
+  const value = String(condition ?? "").trim().toLowerCase();
+  return value.length > 0 ? value : "feature_present";
+}
+
+function resolveTrialPerBlock(settings: TaskSettings): number {
+  const configured = Number(settings.trial_per_block ?? settings.trials_per_block ?? 0);
+  if (Number.isFinite(configured) && configured > 0) {
+    return Math.max(1, Math.trunc(configured));
+  }
+  const totalBlocks = Math.max(1, Number(settings.total_blocks ?? 1));
+  const totalTrials = Math.max(1, Number(settings.total_trials ?? totalBlocks));
+  return Math.max(1, Math.ceil(totalTrials / totalBlocks));
+}
+
+function resolveBlockSeed(settings: TaskSettings, blockIndex: number): number {
+  const blockSeeds = Array.isArray(settings.block_seed) ? settings.block_seed : [];
+  const candidate = Number(blockSeeds[blockIndex]);
+  if (Number.isFinite(candidate)) {
+    return Math.trunc(candidate);
+  }
+  const fallback = Number(settings.overall_seed ?? 2025);
+  return Number.isFinite(fallback) ? Math.trunc(fallback) : blockIndex + 1;
+}
+
 export async function run(root: HTMLElement): Promise<void> {
   const parsed = parsePsyflowConfig(configText, import.meta.url);
   const settings = TaskSettings.from_dict(parsed.task_config);
   const subInfo = new SubInfo(parsed.subform_config);
   const stimBank = new StimBank(parsed.stim_config);
-  const controller = Controller.from_dict(parsed.controller_config);
+  const conditionGenerationConfig = (parsed.raw.condition_generation ?? {}) as Record<string, unknown>;
 
   settings.triggers = parsed.trigger_config;
-  settings.controller = parsed.controller_config;
+  settings.condition_generation = conditionGenerationConfig;
 
   if (settings.voice_enabled) {
     stimBank.convert_to_voice("instruction_text", {
       voice: String(settings.voice_name ?? "en-US-AriaNeural"),
-      rate: 1
+      rate: 1,
+      assetFiles: {}
     });
   }
 
@@ -66,12 +91,11 @@ export async function run(root: HTMLElement): Promise<void> {
     stimBank,
     buildTrials: (): CompiledTrial[] => {
       reset_trial_counter();
+
       const compiledTrials: CompiledTrial[] = [];
       const totalBlocks = Math.max(1, Number(settings.total_blocks ?? 1));
-      const trialPerBlock = Math.max(
-        1,
-        Number(settings.trial_per_block ?? settings.trials_per_block ?? 1)
-      );
+      const trialPerBlock = resolveTrialPerBlock(settings);
+      const conditionWeights = settings.resolve_condition_weights();
 
       const instructionInputs: Array<Resolvable<StimRef | StimSpec | null>> = [
         stimBank.get("instruction_text")
@@ -90,7 +114,16 @@ export async function run(root: HTMLElement): Promise<void> {
 
       for (let blockIndex = 0; blockIndex < totalBlocks; blockIndex += 1) {
         const blockId = `block_${blockIndex}`;
-        controller.start_block(blockIndex);
+        const blockSeed = resolveBlockSeed(settings, blockIndex);
+
+        const block = new BlockUnit({
+          block_id: blockId,
+          block_idx: blockIndex,
+          settings,
+          n_trials: trialPerBlock
+        }).generate_conditions({
+          weights: conditionWeights
+        });
 
         compiledTrials.push(
           ...count_down({
@@ -101,29 +134,24 @@ export async function run(root: HTMLElement): Promise<void> {
           })
         );
 
-        const block = new BlockUnit({
-          block_id: blockId,
-          block_idx: blockIndex,
-          settings,
-          n_trials: trialPerBlock
-        }).generate_conditions();
-
-        block.conditions.forEach((condition, trialIndex) => {
+        for (let trialIndex = 0; trialIndex < block.conditions.length; trialIndex += 1) {
+          const condition = normalizeConditionLabel(String(block.conditions[trialIndex]));
           const trial = new TrialBuilder({
             trial_id: next_trial_id(),
             block_id: blockId,
             trial_index: trialIndex,
-            condition: String(condition)
+            condition
           });
-          run_trial(trial, String(condition), {
+          run_trial(trial, condition, {
             settings,
             stimBank,
-            controller,
             block_id: blockId,
-            block_idx: blockIndex
+            block_idx: blockIndex,
+            block_seed: blockSeed,
+            condition_generation: conditionGenerationConfig
           });
           compiledTrials.push(trial.build());
-        });
+        }
 
         if (blockIndex < totalBlocks - 1) {
           compiledTrials.push(
@@ -131,7 +159,7 @@ export async function run(root: HTMLElement): Promise<void> {
               {
                 trial_id: `block_break_${blockIndex}`,
                 condition: "block_break",
-                trial_index: block.conditions.length + blockIndex
+                trial_index: trialPerBlock + blockIndex
               },
               blockId,
               "block_break",

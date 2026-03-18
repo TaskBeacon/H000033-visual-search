@@ -5,11 +5,10 @@ Feature vs conjunction display generation, present/absent key mapping, and block
 
 ## Layout
 
-- `main.ts`: task orchestration
-- `config/config.yaml`: declarative config
-- `src/controller.ts`: condition parser, array generator, and counters
-- `src/run_trial.ts`: trial logic
-- `src/utils.ts`: block/overall summary helpers
+- `main.ts`: block scheduling and task mounting
+- `config/config.yaml`: declarative config, including `condition_generation`
+- `src/run_trial.ts`: trial realization
+- `src/utils.ts`: pure trial-spec generation plus block/overall summaries
 
 ## Run
 
@@ -25,4 +24,3 @@ Open:
 ```text
 http://127.0.0.1:4173/?task=H000033-visual-search
 ```
-

@@ -136,19 +136,16 @@ triggers:
     response_absent: 32
     search_timeout: 33
     iti_onset: 40
-
   driver:
     type: serial_url
     url: loop://
     baudrate: 115200
-
   timing:
     post_delay_ms: 1
-
   policy:
     strict: false
 
-controller:
+condition_generation:
   feature_set_sizes: [8, 12, 16]
   conjunction_set_sizes: [8, 12, 16]
   array_radius_px: 245
@@ -160,4 +157,3 @@ controller:
   distractor_color: green
   random_seed: null
   enable_logging: true
-

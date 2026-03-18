@@ -7,7 +7,7 @@ import {
   type TrialSnapshot
 } from "psyflow-web";
 
-import { Controller } from "./controller";
+import { buildVisualSearchTrialSpec } from "./utils";
 
 interface TrialOutcome {
   response_key: string;
@@ -37,22 +37,36 @@ export function run_trial(
   context: {
     settings: TaskSettings;
     stimBank: StimBank;
-    controller: Controller;
     block_id: string;
     block_idx: number;
+    block_seed: number;
+    condition_generation: Record<string, unknown>;
   }
 ): TrialBuilder {
-  const { settings, stimBank, controller, block_id, block_idx } = context;
-  const trialSpec = controller.build_trial(condition);
+  const {
+    settings,
+    stimBank,
+    block_id,
+    block_idx,
+    block_seed,
+    condition_generation
+  } = context;
+  const trialSpec = buildVisualSearchTrialSpec({
+    condition,
+    trialId: trial.trial_id,
+    blockSeed: block_seed,
+    generationConfig: condition_generation
+  });
+
   const presentKey = normalizeKey(settings.present_key ?? "f");
   const absentKey = normalizeKey(settings.absent_key ?? "j");
   const responseKeys = [presentKey, absentKey];
   const correctKey = trialSpec.target_present ? presentKey : absentKey;
   const triggerMap = (settings.triggers ?? {}) as Record<string, unknown>;
 
-  const fixationDuration = controller.sample_duration(settings.fixation_duration, 0.6);
-  const responseDeadline = Math.max(0.1, Number(settings.response_deadline ?? 2.0));
-  const itiDuration = controller.sample_duration(settings.iti_duration, 0.4);
+  const fixationDuration = (settings.fixation_duration ?? 0.6) as number | number[] | null;
+  const responseDeadline = (settings.response_deadline ?? 2.0) as number | number[] | null;
+  const itiDuration = (settings.iti_duration ?? 0.4) as number | number[] | null;
   const itemHeight = Math.max(1, Number(settings.item_height ?? 44));
   const itemFont = String(settings.item_font ?? "Arial");
 
@@ -66,7 +80,7 @@ export function run_trial(
     deadline_s: fixationDuration,
     valid_keys: [],
     block_id,
-    condition_id: trialSpec.condition,
+    condition_id: trialSpec.condition_id,
     task_factors: {
       condition: trialSpec.condition,
       search_type: trialSpec.search_type,
@@ -77,9 +91,7 @@ export function run_trial(
     },
     stim_id: "fixation+search_goal"
   });
-  fixation
-    .show({ duration: fixationDuration })
-    .to_dict();
+  fixation.show({ duration: fixationDuration }).to_dict();
 
   const searchItems: StimSpec[] = trialSpec.items.map((item) => ({
     type: "text",
@@ -103,7 +115,7 @@ export function run_trial(
     deadline_s: responseDeadline,
     valid_keys: responseKeys,
     block_id,
-    condition_id: trialSpec.condition,
+    condition_id: trialSpec.condition_id,
     task_factors: {
       condition: trialSpec.condition,
       search_type: trialSpec.search_type,
@@ -154,12 +166,13 @@ export function run_trial(
     deadline_s: 0,
     valid_keys: [],
     block_id,
-    condition_id: trialSpec.condition,
+    condition_id: trialSpec.condition_id,
     task_factors: {
       condition: trialSpec.condition,
       search_type: trialSpec.search_type,
       target_present: trialSpec.target_present,
       set_size: trialSpec.set_size,
+      target_index: trialSpec.target_index,
       stage: "trial_outcome",
       block_idx
     },
@@ -190,7 +203,7 @@ export function run_trial(
     deadline_s: itiDuration,
     valid_keys: [],
     block_id,
-    condition_id: trialSpec.condition,
+    condition_id: trialSpec.condition_id,
     task_factors: {
       condition: trialSpec.condition,
       search_type: trialSpec.search_type,
@@ -205,12 +218,12 @@ export function run_trial(
 
   trial.finalize((snapshot, _runtime, helpers) => {
     const outcome = getOutcome(snapshot);
-    const responded = outcome?.responded ?? false;
-    const hit = outcome?.hit ?? false;
-    const rtS = outcome?.rt_s ?? null;
-    const timedOut = outcome?.timed_out ?? true;
+    if (!outcome) {
+      return;
+    }
 
     helpers.setTrialState("condition", trialSpec.condition);
+    helpers.setTrialState("condition_id", trialSpec.condition_id);
     helpers.setTrialState("search_type", trialSpec.search_type);
     helpers.setTrialState("target_present", trialSpec.target_present);
     helpers.setTrialState("set_size", trialSpec.set_size);
@@ -218,18 +231,11 @@ export function run_trial(
     helpers.setTrialState("correct_key", correctKey);
     helpers.setTrialState("present_key", presentKey);
     helpers.setTrialState("absent_key", absentKey);
-    helpers.setTrialState("search_array_response", outcome?.response_key ?? "");
-    helpers.setTrialState("search_array_rt", rtS);
-    helpers.setTrialState("search_array_hit", hit);
-    helpers.setTrialState("timed_out", timedOut);
-    helpers.setTrialState("responded", responded);
-
-    controller.record_trial({
-      hit,
-      rt_s: rtS,
-      responded,
-      condition: trialSpec.condition
-    });
+    helpers.setTrialState("search_array_response", outcome.response_key);
+    helpers.setTrialState("search_array_rt", outcome.rt_s);
+    helpers.setTrialState("search_array_hit", outcome.hit);
+    helpers.setTrialState("timed_out", outcome.timed_out);
+    helpers.setTrialState("responded", outcome.responded);
   });
 
   return trial;
